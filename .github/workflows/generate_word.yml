@@ -99,30 +99,38 @@ jobs:
             sudo apt-get install -y jq
           fi
           RELEASES_JSON=$(curl -sSL \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/releases")
 
-          HOJAS_ASSET_URL=$(echo "$RELEASES_JSON" | jq -r '.[] | select(.name=="Hojas") | .assets[] | select(.name=="Hojas.zip") | .url')
-          CUENCAS_ASSET_URL=$(echo "$RELEASES_JSON" | jq -r '.[] | select(.name=="Cuenca") | .assets[] | select(.name=="Cuencas.zip") | .url')
+          HOJAS_ASSET_URL=$(echo "$RELEASES_JSON" | jq -r '.[] | select(.tag_name=="Hojas") | .assets[] | select(.name=="Hojas.zip") | .url' | head -n 1)
+          CUENCAS_ASSET_URL=$(echo "$RELEASES_JSON" | jq -r '.[] | select(.tag_name=="Cuenca") | .assets[] | select(.name=="Cuencas.zip") | .url' | head -n 1)
 
           if [ -z "$HOJAS_ASSET_URL" ] || [ "$HOJAS_ASSET_URL" = "null" ]; then
-            echo "Hojas.zip asset not found in release named Hojas"
+            echo "Hojas.zip asset not found in release tagged Hojas"
+            echo "Available release tags:"
+            echo "$RELEASES_JSON" | jq -r '.[].tag_name'
+            echo "Assets for release tag Hojas:"
+            echo "$RELEASES_JSON" | jq -r '.[] | select(.tag_name=="Hojas") | .assets[].name'
             exit 1
           fi
           if [ -z "$CUENCAS_ASSET_URL" ] || [ "$CUENCAS_ASSET_URL" = "null" ]; then
-            echo "Cuencas.zip asset not found in release named Cuenca"
+            echo "Cuencas.zip asset not found in release tagged Cuenca"
+            echo "Available release tags:"
+            echo "$RELEASES_JSON" | jq -r '.[].tag_name'
+            echo "Assets for release tag Cuenca:"
+            echo "$RELEASES_JSON" | jq -r '.[] | select(.tag_name=="Cuenca") | .assets[].name'
             exit 1
           fi
 
           curl -L --fail \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/octet-stream" \
             "$HOJAS_ASSET_URL" \
             -o data/zips/Hojas.zip
 
           curl -L --fail \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/octet-stream" \
             "$CUENCAS_ASSET_URL" \
             -o data/zips/Cuencas.zip
