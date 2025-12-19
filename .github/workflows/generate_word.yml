@@ -3,21 +3,21 @@ name: Generar informe Word
 on:
   workflow_dispatch:
     inputs:
-      x:
-        description: "Coordenada X"
+      lat:
+        description: "Coordenada Y (latitud o Norte)"
         required: true
         type: string
-      y:
-        description: "Coordenada Y"
+      lon:
+        description: "Coordenada X (longitud o Este)"
         required: true
         type: string
-      crs:
+      input_crs:
         description: "CRS de entrada"
         required: true
         type: choice
         options:
-          - EPSG:5367
-          - EPSG:4326
+          - "5367"
+          - "4326"
       template:
         description: "Ruta a la plantilla DOCX"
         required: true
@@ -53,6 +53,13 @@ jobs:
           path: data/dem/MED.CR.tif
           key: dem-data-dem-v1
 
+      - name: Cache GIS zips
+        id: cache-gis-zips
+        uses: actions/cache@v4
+        with:
+          path: data/zips
+          key: gis-zips-v1
+
       - name: Download DEM
         if: steps.cache-dem.outputs.cache-hit != 'true'
         env:
@@ -80,14 +87,54 @@ jobs:
             "$ASSET_URL" \
             -o data/dem/MED.CR.tif
 
+      - name: Download GIS zips
+        if: steps.cache-gis-zips.outputs.cache-hit != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eux
+          mkdir -p data/zips
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y jq
+          fi
+          RELEASES_JSON=$(curl -sSL \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases")
+
+          HOJAS_ASSET_URL=$(echo "$RELEASES_JSON" | jq -r '.[] | select(.name=="Hojas") | .assets[] | select(.name=="Hojas.zip") | .url')
+          CUENCAS_ASSET_URL=$(echo "$RELEASES_JSON" | jq -r '.[] | select(.name=="Cuenca") | .assets[] | select(.name=="Cuencas.zip") | .url')
+
+          if [ -z "$HOJAS_ASSET_URL" ] || [ "$HOJAS_ASSET_URL" = "null" ]; then
+            echo "Hojas.zip asset not found in release named Hojas"
+            exit 1
+          fi
+          if [ -z "$CUENCAS_ASSET_URL" ] || [ "$CUENCAS_ASSET_URL" = "null" ]; then
+            echo "Cuencas.zip asset not found in release named Cuenca"
+            exit 1
+          fi
+
+          curl -L --fail \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "$HOJAS_ASSET_URL" \
+            -o data/zips/Hojas.zip
+
+          curl -L --fail \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "$CUENCAS_ASSET_URL" \
+            -o data/zips/Cuencas.zip
+
       - name: Generate report
         run: |
           set -eux
           export PYTHONPATH="${GITHUB_WORKSPACE}"
           python tools/generate_report.py \
-            --x "${{ inputs.x }}" \
-            --y "${{ inputs.y }}" \
-            --crs "${{ inputs.crs }}" \
+            --x "${{ inputs.lon }}" \
+            --y "${{ inputs.lat }}" \
+            --crs "${{ inputs.input_crs }}" \
             --template "${{ inputs.template }}" \
             --out "output/informe_${{ github.run_id }}.docx"
 

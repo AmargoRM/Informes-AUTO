@@ -41,8 +41,8 @@ streamlit run app.py
 
 1. Ir a **Actions** → **Generar informe Word** → **Run workflow**.
 2. Completar los inputs:
-   - `x`, `y`: coordenadas.
-   - `crs`: EPSG de la coordenada.
+   - `lat`, `lon`: coordenadas (si `input_crs=5367`, se interpretan como Norte/Este).
+   - `input_crs`: EPSG de la coordenada (4326 o 5367).
    - `template`: ruta a la plantilla `.docx`.
    - `output_name`: nombre base del archivo generado.
 3. Ejecutar el workflow y descargar el artifact `informe-word` (contiene `output/*.docx`).
@@ -59,7 +59,9 @@ del DEM; si el DEM no está disponible, el campo queda vacío y el workflow cont
 
 ## Datos de entrada
 
-- **Shapefiles**: colocar en `data/` (por ejemplo `capas.shp`).
+- **Hojas cartográficas**: se descargan desde el release llamado **Hojas** (asset `Hojas.zip`) y se guardan en `data/zips/Hojas.zip`.
+- **Cuencas**: se descargan desde el release llamado **Cuenca** (asset `Cuencas.zip`) y se guardan en `data/zips/Cuencas.zip`.
+- **Límites administrativos**: colocar `Limites_geo.zip` en `data/zips/` (o `data/`); el workflow lo usa si está disponible.
 - **DEM**: colocar en `data/` (por ejemplo `dem.tif`).
 - **Plantilla**: usar `templates/plantilla.docx` o reemplazarla por otra.
 
