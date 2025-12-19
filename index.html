@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Generador de Informe Técnico</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/proj4@2.9.0/dist/proj4.min.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="hero">
+    <h1>Generador de Informe Técnico</h1>
+    <p>Convierte coordenadas y genera informes Word desde GitHub Actions.</p>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>Seguridad</h2>
+      <p>Ingresa un token de GitHub con permisos para ejecutar workflows.</p>
+      <div class="row">
+        <div class="field">
+          <label for="token">GitHub Token</label>
+          <input type="password" id="token" placeholder="ghp_..." />
+        </div>
+        <div class="button-group">
+          <button id="save-token" class="secondary">Guardar token</button>
+          <button id="clear-token" class="ghost">Borrar token</button>
+        </div>
+      </div>
+      <p class="helper">El token se guarda en tu navegador (localStorage).</p>
+    </section>
+
+    <section class="card">
+      <h2>Coordenadas</h2>
+      <div class="toggle">
+        <label>
+          <input type="radio" name="coord-mode" value="wgs84" checked />
+          WGS84 (lat/lon)
+        </label>
+        <label>
+          <input type="radio" name="coord-mode" value="lambert" />
+          Lambert Norte (EPSG:5367)
+        </label>
+      </div>
+
+      <div id="wgs84-fields" class="grid">
+        <div class="field">
+          <label for="lat">Latitud</label>
+          <input type="number" id="lat" placeholder="9.934739" step="any" />
+        </div>
+        <div class="field">
+          <label for="lon">Longitud</label>
+          <input type="number" id="lon" placeholder="-84.087502" step="any" />
+        </div>
+      </div>
+
+      <div id="lambert-fields" class="grid hidden">
+        <div class="field">
+          <label for="e5367">Este (E)</label>
+          <input type="number" id="e5367" placeholder="500000" step="any" />
+        </div>
+        <div class="field">
+          <label for="n5367">Norte (N)</label>
+          <input type="number" id="n5367" placeholder="1090000" step="any" />
+        </div>
+      </div>
+
+      <div class="button-group">
+        <button id="convert" class="secondary">Convertir</button>
+      </div>
+
+      <div class="result" id="conversion-result">
+        <div>
+          <span class="label">E_5367</span>
+          <span id="result-e">—</span>
+        </div>
+        <div>
+          <span class="label">N_5367</span>
+          <span id="result-n">—</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Datos del expediente (opcional)</h2>
+      <div class="grid">
+        <div class="field">
+          <label for="expediente">Expediente</label>
+          <input type="text" id="expediente" placeholder="EXP-2024-001" />
+        </div>
+        <div class="field">
+          <label for="gestor">Gestor</label>
+          <input type="text" id="gestor" placeholder="Nombre del gestor" />
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Generación</h2>
+      <div class="button-group">
+        <button id="generate" class="primary">Generar informe</button>
+      </div>
+      <p class="helper">Se enviará un workflow_dispatch al repositorio AmargoRM/Informes-AUTO.</p>
+      <div id="alert" class="alert hidden"></div>
+    </section>
+
+    <section class="card">
+      <h2>Estado</h2>
+      <div class="status">
+        <span id="status-badge" class="badge">Sin iniciar</span>
+        <span id="status-spinner" class="spinner hidden"></span>
+      </div>
+      <div class="status-links">
+        <a id="run-link" href="#" target="_blank" rel="noopener" class="hidden">Ver run en GitHub</a>
+        <button id="download-artifact" class="ghost hidden">Descargar Word</button>
+      </div>
+      <p id="status-detail" class="helper">Aún no hay ejecución.</p>
+    </section>
+  </main>
+
+  <footer>
+    GitHub Pages | AmargoRM
+  </footer>
+</body>
+</html>

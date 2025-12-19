@@ -50,6 +50,36 @@ streamlit run app.py
 Para ver valores en el Word, la plantilla debe incluir placeholders con la forma
 `{{X}}`, `{{Y}}`, `{{CRS}}`, `{{FECHA_GEN}}`.
 
+## GitHub Pages (interfaz web)
+
+Este repositorio incluye una interfaz web estática para disparar el workflow desde
+GitHub Pages: `index.html`, `style.css` y `app.js` en la raíz del repo. Para usarla:
+
+1. Habilita GitHub Pages en **Settings → Pages** (Source: `main` / root).
+2. Abre `https://amargorm.github.io/Informes-AUTO/`.
+3. Ingresa tus coordenadas (WGS84 o Lambert Norte EPSG:5367), convierte si aplica y
+   pulsa **Generar informe**.
+
+### Token requerido
+
+La web solicita un GitHub Token (PAT) para ejecutar el workflow y descargar artifacts.
+El token se guarda en `localStorage` del navegador y se puede borrar con el botón
+correspondiente.
+
+Permisos mínimos recomendados:
+
+- **Public repo**: `actions:read`, `actions:write` (workflow).
+- **Private repo**: además `repo`.
+
+### Inputs enviados al workflow
+
+La web envía `lat_wgs84`, `lon_wgs84`, `e_5367`, `n_5367`, `expediente`, `gestor`.
+Si ingresas coordenadas EPSG:5367, la web reproyecta a WGS84 para completar los
+inputs requeridos.
+
+> Nota: la reproyección EPSG:5367 utiliza una definición CRTM05 (tmerc) en el
+> navegador. Ajusta `WORKFLOW_FILE` o la definición en `app.js` si cambian.
+
 ## Altitud desde DEM (Release data-dem-v1)
 
 El workflow **Generar informe Word** descarga automáticamente el DEM desde el release
