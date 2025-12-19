@@ -1,0 +1,61 @@
+name: Generar informe Word
+
+on:
+  workflow_dispatch:
+    inputs:
+      x:
+        description: "Coordenada X"
+        required: true
+        type: string
+      y:
+        description: "Coordenada Y"
+        required: true
+        type: string
+      crs:
+        description: "CRS de entrada"
+        required: true
+        type: choice
+        options:
+          - EPSG:5367
+          - EPSG:4326
+      template:
+        description: "Ruta a la plantilla DOCX"
+        required: true
+        type: string
+        default: "templates/DA-UHSAN-XXXX-2025.Ins_XXXX-A.docx"
+      output_name:
+        description: "Nombre base del archivo de salida"
+        required: false
+        type: string
+        default: "informe"
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate report
+        run: |
+          python tools/generate_report.py \
+            --x "${{ inputs.x }}" \
+            --y "${{ inputs.y }}" \
+            --crs "${{ inputs.crs }}" \
+            --template "${{ inputs.template }}" \
+            --output-name "${{ inputs.output_name }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: informe-word
+          path: output/*.docx
+          retention-days: 14
