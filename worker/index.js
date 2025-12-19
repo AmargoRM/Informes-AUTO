@@ -9,9 +9,17 @@ const jsonResponse = (data, init = {}) => {
   return new Response(JSON.stringify(data), { ...init, headers });
 };
 
+const normalizeAllowedOrigins = (allowedOrigin) =>
+  (allowedOrigin || "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
 const isAllowedOrigin = (origin, allowedOrigin) => {
+  const allowedList = normalizeAllowedOrigins(allowedOrigin);
   if (!origin) return true;
-  if (origin === allowedOrigin) return true;
+  if (allowedList.includes("*")) return true;
+  if (allowedList.includes(origin)) return true;
   if (origin.startsWith("http://localhost")) return true;
   if (origin.startsWith("http://127.0.0.1")) return true;
   return false;
@@ -147,7 +155,7 @@ export default {
   async fetch(request, env) {
     const { pathname, searchParams } = new URL(request.url);
     const origin = request.headers.get("Origin");
-    const allowedOrigin = env.ALLOWED_ORIGIN || "https://amargorm.github.io";
+    const allowedOrigin = env.ALLOWED_ORIGIN || "*";
 
     if (!isAllowedOrigin(origin, allowedOrigin)) {
       return jsonResponse(
