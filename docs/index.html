@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Generador de Informe Técnico</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="hero">
+        <p class="eyebrow">Informes automatizados</p>
+        <h1>Generador de Informe Técnico</h1>
+        <p class="subtitle">
+          Completa los datos y dispara el workflow para generar el informe Word.
+        </p>
+      </header>
+
+      <section class="panel">
+        <form id="report-form" class="form">
+          <label class="field">
+            <span>Expediente</span>
+            <input type="text" id="exp" name="exp" placeholder="Ej: EXP-2024-001" />
+          </label>
+          <label class="field">
+            <span>Gestor</span>
+            <input type="text" id="gestor" name="gestor" placeholder="Nombre del gestor" />
+          </label>
+          <label class="field">
+            <span>Latitud (decimal WGS84)</span>
+            <input type="number" step="any" id="lat" name="lat" placeholder="Ej: 9.934739" required />
+          </label>
+          <label class="field">
+            <span>Longitud (decimal WGS84)</span>
+            <input type="number" step="any" id="lon" name="lon" placeholder="Ej: -84.087502" required />
+          </label>
+          <button type="submit" id="submit-button" class="primary">
+            Generar informe
+          </button>
+        </form>
+      </section>
+
+      <section class="panel status" id="status-panel" aria-live="polite">
+        <div class="status-row">
+          <div>
+            <p class="status-title">Estado</p>
+            <p id="status-message" class="status-message">Listo para enviar.</p>
+          </div>
+          <span id="status-pill" class="pill idle">Sin solicitar</span>
+        </div>
+        <div class="actions">
+          <a id="run-link" class="secondary" target="_blank" rel="noopener">Ver ejecución</a>
+          <button id="download-button" class="primary" type="button" disabled>
+            Descargar Word
+          </button>
+        </div>
+        <p id="status-help" class="status-help"></p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>El informe se genera mediante GitHub Actions sin solicitar tokens al usuario.</p>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
