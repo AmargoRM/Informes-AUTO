@@ -54,6 +54,11 @@ body {
   max-width: 560px;
 }
 
+.section-title {
+  font-size: 1.1rem;
+  margin-bottom: 12px;
+}
+
 .panel {
   background: var(--card);
   border: 1px solid var(--border);
@@ -188,6 +193,34 @@ input:focus {
   font-size: 0.9rem;
 }
 
+.config-row {
+  display: grid;
+  gap: 12px;
+  align-items: end;
+}
+
+.config-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 8px;
+}
+
+.config-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.warning {
+  color: var(--warning);
+}
+
+.hidden {
+  display: none;
+}
+
 .footer {
   margin-top: auto;
   padding: 24px;
@@ -204,6 +237,10 @@ input:focus {
   .form button {
     grid-column: span 2;
     width: fit-content;
+  }
+
+  .config-row {
+    grid-template-columns: 1fr auto;
   }
 }
 

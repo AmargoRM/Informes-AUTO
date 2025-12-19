@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Generador de Informe Técnico</title>
     <link rel="stylesheet" href="styles.css" />
+    <script>
+      window.__CONFIG__ = {
+        WORKER_BASE_URL: "",
+      };
+    </script>
   </head>
   <body>
     <main class="container">
@@ -15,6 +20,26 @@
           Completa los datos y dispara el workflow para generar el informe Word.
         </p>
       </header>
+
+      <section class="panel">
+        <h2 class="section-title">Conexión con el Worker</h2>
+        <p class="subtitle">
+          Guarda la URL del Worker (no es un token). Debe iniciar con https:// y no terminar con "/".
+        </p>
+        <div class="config-row">
+          <label class="field">
+            <span>URL del Worker</span>
+            <input type="text" id="worker-url" placeholder="https://tu-worker.workers.dev" />
+          </label>
+          <button id="save-worker-url" class="secondary" type="button">Guardar</button>
+        </div>
+        <p class="config-meta">URL actual: <span id="worker-url-current">No configurada</span></p>
+        <div class="config-status">
+          <span id="worker-health-badge" class="pill idle">Sin verificar</span>
+          <span id="worker-health-detail" class="config-meta">Configura la URL para comprobar la conexión.</span>
+        </div>
+        <p id="worker-warning" class="config-meta warning hidden"></p>
+      </section>
 
       <section class="panel">
         <form id="report-form" class="form">
