@@ -46,12 +46,14 @@ jobs:
 
       - name: Generate report
         run: |
+          set -eux
+          export PYTHONPATH="${GITHUB_WORKSPACE}"
           python tools/generate_report.py \
             --x "${{ inputs.x }}" \
             --y "${{ inputs.y }}" \
             --crs "${{ inputs.crs }}" \
             --template "${{ inputs.template }}" \
-            --output-name "${{ inputs.output_name }}"
+            --out "output/informe_${{ github.run_id }}.docx"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
