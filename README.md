@@ -13,6 +13,7 @@ Aplicación local en Streamlit para generar informes Word (.docx) a partir de un
 .
 ├── app.py
 ├── data/                # Coloque aquí shapefiles y DEM reales
+├── docs/                # GitHub Pages (frontend)
 ├── src/
 │   ├── __init__.py
 │   ├── dem.py            # Lectura de altitud desde DEM
@@ -20,6 +21,7 @@ Aplicación local en Streamlit para generar informes Word (.docx) a partir de un
 │   └── word_fill.py      # Relleno de plantilla Word
 ├── templates/
 │   └── plantilla.docx    # Plantilla Word de ejemplo
+├── worker/               # Cloudflare Worker (backend)
 └── requirements.txt
 ```
 
@@ -41,44 +43,56 @@ streamlit run app.py
 
 1. Ir a **Actions** → **Generar informe Word** → **Run workflow**.
 2. Completar los inputs:
-   - `lat`, `lon`: coordenadas (si `input_crs=5367`, se interpretan como Norte/Este).
-   - `input_crs`: EPSG de la coordenada (4326 o 5367).
-   - `template`: ruta a la plantilla `.docx`.
-   - `output_name`: nombre base del archivo generado.
-3. Ejecutar el workflow y descargar el artifact `informe-word` (contiene `output/*.docx`).
+   - `lat`, `lon`: coordenadas WGS84.
+   - `exp` (opcional): expediente.
+   - `gestor` (opcional): gestor responsable.
+3. Ejecutar el workflow y descargar el artifact del informe Word.
 
 Para ver valores en el Word, la plantilla debe incluir placeholders con la forma
 `{{X}}`, `{{Y}}`, `{{CRS}}`, `{{FECHA_GEN}}`.
 
-## GitHub Pages (interfaz web)
+## GitHub Pages + Cloudflare Worker (interfaz web)
 
-Este repositorio incluye una interfaz web estática para disparar el workflow desde
-GitHub Pages: `index.html`, `style.css` y `app.js` en la raíz del repo. Para usarla:
+Esta arquitectura evita pedir tokens al usuario final. El frontend en GitHub Pages
+se comunica con un Cloudflare Worker que contiene el token como secret.
 
-1. Habilita GitHub Pages en **Settings → Pages** (Source: `main` / root).
-2. Abre `https://amargorm.github.io/Informes-AUTO/`.
-3. Ingresa tus coordenadas (WGS84 o Lambert Norte EPSG:5367), convierte si aplica y
-   pulsa **Generar informe**.
+### 1) Activar GitHub Pages desde `/docs`
 
-### Token requerido
+1. En el repositorio, ve a **Settings → Pages**.
+2. Selecciona **Source: Deploy from a branch**.
+3. Elige la rama `main` y carpeta `/docs`.
+4. Guarda los cambios y abre la URL: `https://amargorm.github.io/Informes-AUTO/`.
 
-La web solicita un GitHub Token (PAT) para ejecutar el workflow y descargar artifacts.
-El token se guarda en `localStorage` del navegador y se puede borrar con el botón
-correspondiente.
+### 2) Desplegar el Cloudflare Worker
 
-Permisos mínimos recomendados:
+1. Crea un Worker nuevo en Cloudflare.
+2. Copia el contenido de `worker/index.js`.
+3. Agrega los secrets:
+   - `GITHUB_TOKEN`: Fine-grained PAT con acceso solo al repo `Informes-AUTO`.
+   - `ALLOWED_ORIGIN`: `https://amargorm.github.io` (valor por defecto).
+4. Publica el Worker y copia la URL (`https://TU-WORKER.workers.dev`).
 
-- **Public repo**: `actions:read`, `actions:write` (workflow).
-- **Private repo**: además `repo`.
+### 3) Configurar el frontend
 
-### Inputs enviados al workflow
+Edita `docs/app.js` y define la constante:
 
-La web envía `lat_wgs84`, `lon_wgs84`, `e_5367`, `n_5367`, `expediente`, `gestor`.
-Si ingresas coordenadas EPSG:5367, la web reproyecta a WGS84 para completar los
-inputs requeridos.
+```js
+const WORKER_BASE_URL = "https://TU-WORKER.workers.dev";
+```
 
-> Nota: la reproyección EPSG:5367 utiliza una definición CRTM05 (tmerc) en el
-> navegador. Ajusta `WORKFLOW_FILE` o la definición en `app.js` si cambian.
+> **Nota:** el usuario nunca ingresa tokens en la web. Todo el acceso a GitHub
+> se realiza desde el Worker usando secrets.
+
+### Permisos mínimos del token
+
+Configura un Fine-grained PAT con acceso **solo** al repositorio `Informes-AUTO` y
+los siguientes permisos:
+
+- **Actions**: Read and write
+- **Contents**: Read
+- **Metadata**: Read
+
+No uses scopes amplios ni permisos adicionales.
 
 ## Altitud desde DEM (Release data-dem-v1)
 
