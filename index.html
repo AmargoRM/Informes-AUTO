@@ -6,11 +6,6 @@
   <title>Generador de Informe Técnico</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/proj4@2.9.0/dist/proj4.min.js" defer></script>
-  <script>
-    window.__CONFIG__ = {
-      WORKER_BASE_URL: "",
-    };
-  </script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -83,26 +78,6 @@
           <input type="text" id="gestor" placeholder="Nombre del gestor" />
         </div>
       </div>
-    </section>
-
-    <section class="card">
-      <h2>Conexión con el Worker</h2>
-      <p class="helper">
-        Ingresa la URL del Worker (no es un token). Debe iniciar con https:// y no terminar con "/".
-      </p>
-      <div class="row">
-        <div class="field">
-          <label for="worker-url">URL del Worker</label>
-          <input type="text" id="worker-url" placeholder="https://tu-worker.workers.dev" />
-        </div>
-        <button id="save-worker-url" class="secondary">Guardar</button>
-      </div>
-      <p class="helper">URL actual: <span id="worker-url-current">No configurada</span></p>
-      <div class="status">
-        <span id="worker-health-badge" class="badge">Sin verificar</span>
-        <span id="worker-health-detail" class="helper">Configura la URL para comprobar la conexión.</span>
-      </div>
-      <p id="worker-warning" class="helper warning hidden"></p>
     </section>
 
     <section class="card">

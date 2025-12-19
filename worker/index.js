@@ -9,19 +9,9 @@ const jsonResponse = (data, init = {}) => {
   return new Response(JSON.stringify(data), { ...init, headers });
 };
 
-const normalizeAllowedOrigin = (allowedOrigin) => {
-  if (!allowedOrigin) return "";
-  try {
-    return new URL(allowedOrigin).origin;
-  } catch (error) {
-    return allowedOrigin;
-  }
-};
-
 const isAllowedOrigin = (origin, allowedOrigin) => {
-  const normalizedAllowed = normalizeAllowedOrigin(allowedOrigin);
   if (!origin) return true;
-  if (origin === normalizedAllowed) return true;
+  if (origin === allowedOrigin) return true;
   if (origin.startsWith("http://localhost")) return true;
   if (origin.startsWith("http://127.0.0.1")) return true;
   return false;
@@ -29,23 +19,25 @@ const isAllowedOrigin = (origin, allowedOrigin) => {
 
 const withCors = (response, origin, allowedOrigin) => {
   const headers = new Headers(response.headers);
-  const normalizedAllowed = normalizeAllowedOrigin(allowedOrigin);
-  headers.set(
-    "Access-Control-Allow-Origin",
-    origin && isAllowedOrigin(origin, allowedOrigin) ? origin : normalizedAllowed
-  );
+  if (origin && isAllowedOrigin(origin, allowedOrigin)) {
+    headers.set("Access-Control-Allow-Origin", origin);
+  } else if (!origin) {
+    headers.set("Access-Control-Allow-Origin", allowedOrigin);
+  }
   headers.set("Vary", "Origin");
   return new Response(response.body, { ...response, headers });
 };
 
 const buildCorsHeaders = (origin, allowedOrigin) => {
-  const normalizedAllowed = normalizeAllowedOrigin(allowedOrigin);
   const headers = {
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
-  headers["Access-Control-Allow-Origin"] =
-    origin && isAllowedOrigin(origin, allowedOrigin) ? origin : normalizedAllowed;
+  if (origin && isAllowedOrigin(origin, allowedOrigin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  } else if (!origin) {
+    headers["Access-Control-Allow-Origin"] = allowedOrigin;
+  }
   return headers;
 };
 
@@ -157,25 +149,6 @@ export default {
     const origin = request.headers.get("Origin");
     const allowedOrigin = env.ALLOWED_ORIGIN || "https://amargorm.github.io";
 
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: buildCorsHeaders(origin, allowedOrigin),
-      });
-    }
-
-    if (pathname === "/health" && request.method === "GET") {
-      return withCors(
-        jsonResponse({
-          ok: true,
-          worker: "up",
-          originAllowed: isAllowedOrigin(origin, allowedOrigin),
-        }),
-        origin,
-        allowedOrigin
-      );
-    }
-
     if (!isAllowedOrigin(origin, allowedOrigin)) {
       return jsonResponse(
         { ok: false, message: "Origen no permitido." },
@@ -184,6 +157,13 @@ export default {
           headers: buildCorsHeaders(origin, allowedOrigin),
         }
       );
+    }
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: buildCorsHeaders(origin, allowedOrigin),
+      });
     }
 
     if (!env.GITHUB_TOKEN) {

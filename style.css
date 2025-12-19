@@ -173,10 +173,6 @@ button.ghost:hover {
   font-size: 0.9rem;
 }
 
-.helper.warning {
-  color: #b45309;
-}
-
 .alert {
   margin-top: 1rem;
   padding: 0.9rem 1rem;

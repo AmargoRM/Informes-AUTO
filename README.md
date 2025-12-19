@@ -74,18 +74,10 @@ se comunica con un Cloudflare Worker que contiene el token como secret.
 
 ### 3) Configurar el frontend
 
-**Cómo poner la URL real del Worker en la web**
+Edita `docs/app.js` y define la constante:
 
-- Abre la web en GitHub Pages y completa la sección **“Conexión con el Worker”**.
-- Pega la URL (`https://<tu-worker>.workers.dev`), presiona **Guardar** y recarga el estado.
-- La URL se guarda en `localStorage` (no es un token).
-
-Opcional: puedes inyectar la URL editando `docs/index.html`:
-
-```html
-<script>
-  window.__CONFIG__ = { WORKER_BASE_URL: "https://<tu-worker>.workers.dev" };
-</script>
+```js
+const WORKER_BASE_URL = "https://TU-WORKER.workers.dev";
 ```
 
 > **Nota:** el usuario nunca ingresa tokens en la web. Todo el acceso a GitHub
@@ -101,15 +93,6 @@ los siguientes permisos:
 - **Metadata**: Read
 
 No uses scopes amplios ni permisos adicionales.
-
-### Checklist rápido: despliegue del Worker
-
-- [ ] Crear el Worker y pegar el contenido de `worker/index.js`.
-- [ ] Configurar secretos:
-  - `GITHUB_TOKEN` (PAT con permisos de Actions/Contents/Metadata).
-  - `ALLOWED_ORIGIN` = `https://amargorm.github.io` (o el origen real de tu Pages).
-- [ ] Publicar el Worker y copiar la URL.
-- [ ] Abrir GitHub Pages y guardar la URL del Worker en la sección de conexión.
 
 ## Altitud desde DEM (Release data-dem-v1)
 
