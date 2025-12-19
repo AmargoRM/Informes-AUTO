@@ -97,6 +97,9 @@ def _spatial_join_values(x: float, y: float, crs_code: str) -> dict[str, str]:
 def _find_dem_file() -> Path | None:
     if not DEM_DIR.exists():
         return None
+    preferred = DEM_DIR / "MED.CR.tif"
+    if preferred.exists():
+        return preferred
     candidates = []
     for pattern in ("*.tif", "*.tiff", "*.img"):
         candidates.extend(DEM_DIR.glob(pattern))
@@ -105,13 +108,17 @@ def _find_dem_file() -> Path | None:
     return sorted(candidates)[0]
 
 
-def _sample_elevation(x: float, y: float) -> str:
+def _sample_elevation(x: float, y: float, crs_code: str) -> str:
     dem_file = _find_dem_file()
     if not dem_file:
         return ""
-    dem_name = dem_file.relative_to(DATA_DIR).as_posix()
-    elevation = get_elevation_from_dem(x, y, dem_name)
-    return str(elevation)
+    elevation = get_elevation_from_dem(x, y, crs_code, dem_file.as_posix())
+    if elevation is None:
+        return ""
+    rounded = round(elevation, 1)
+    if rounded.is_integer():
+        return str(int(rounded))
+    return f"{rounded:.1f}"
 
 
 def parse_args() -> argparse.Namespace:
@@ -154,7 +161,9 @@ def main() -> None:
         "FECHA_GEN": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
     data.update(_spatial_join_values(x, y, args.crs))
-    data["ELEV_M"] = _sample_elevation(x, y)
+    elevation = _sample_elevation(x, y, args.crs)
+    data["ALTITUD_M"] = elevation
+    data["ELEV_M"] = elevation
 
     output_path = resolve_output_path(args.output_name, args.out)
     output_path.parent.mkdir(parents=True, exist_ok=True)

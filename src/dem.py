@@ -1,25 +1,57 @@
 """Lectura de altitud desde un raster DEM."""
+from __future__ import annotations
+
 from pathlib import Path
+import math
 
+import pyproj
 import rasterio
-from rasterio.transform import rowcol
-
-DATA_DIR = Path("data")
 
 
-def get_elevation_from_dem(x: float, y: float, dem_name: str) -> float:
-    """Obtiene la altitud desde un DEM en /data.
+def get_elevation_from_dem(
+    x: float,
+    y: float,
+    crs: str,
+    dem_path: str,
+) -> float | None:
+    """Obtiene la altitud desde un DEM.
 
-    Espera que el DEM tenga CRS compatible con la coordenada recibida.
+    Reproyecta el punto al CRS del raster si es necesario.
     """
-    dem_path = DATA_DIR / dem_name
-    if not dem_path.exists():
-        raise FileNotFoundError(
-            f"No se encontró el DEM: {dem_path}. Coloque el raster en /data."
-        )
+    dem_file = Path(dem_path)
+    if not dem_file.exists():
+        return None
 
-    with rasterio.open(dem_path) as dataset:
-        row, col = rowcol(dataset.transform, x, y)
-        elevation = dataset.read(1)[row, col]
+    with rasterio.open(dem_file) as dataset:
+        raster_crs = dataset.crs
+        sample_x, sample_y = x, y
+        if raster_crs is not None and crs:
+            if str(raster_crs).lower() != crs.lower():
+                transformer = pyproj.Transformer.from_crs(crs, raster_crs, always_xy=True)
+                sample_x, sample_y = transformer.transform(x, y)
 
-    return float(elevation)
+        bounds = dataset.bounds
+        if not (bounds.left <= sample_x <= bounds.right and bounds.bottom <= sample_y <= bounds.top):
+            return None
+
+        sample = next(dataset.sample([(sample_x, sample_y)]), None)
+        if sample is None or len(sample) == 0:
+            return None
+
+        value = sample[0]
+        if hasattr(value, "mask") and value.mask:
+            return None
+
+        nodata = dataset.nodata
+        if nodata is not None and value == nodata:
+            return None
+
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return None
+
+        if math.isnan(value):
+            return None
+
+        return value
