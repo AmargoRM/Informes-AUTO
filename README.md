@@ -50,6 +50,13 @@ streamlit run app.py
 Para ver valores en el Word, la plantilla debe incluir placeholders con la forma
 `{{X}}`, `{{Y}}`, `{{CRS}}`, `{{FECHA_GEN}}`.
 
+## Altitud desde DEM (Release data-dem-v1)
+
+El workflow **Generar informe Word** descarga automáticamente el DEM desde el release
+`data-dem-v1` y lo guarda en `data/dem/MED.CR.tif` (con caché de GitHub Actions). Si
+la plantilla incluye `{{ALTITUD_M}}`, se rellenará con la altitud (en metros) obtenida
+del DEM; si el DEM no está disponible, el campo queda vacío y el workflow continúa.
+
 ## Datos de entrada
 
 - **Shapefiles**: colocar en `data/` (por ejemplo `capas.shp`).

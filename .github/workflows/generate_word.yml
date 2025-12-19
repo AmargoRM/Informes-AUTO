@@ -44,6 +44,22 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Cache DEM
+        id: cache-dem
+        uses: actions/cache@v4
+        with:
+          path: data/dem/MED.CR.tif
+          key: dem-data-dem-v1
+
+      - name: Download DEM
+        if: steps.cache-dem.outputs.cache-hit != 'true'
+        run: |
+          set -eux
+          mkdir -p data/dem
+          curl -L --fail \
+            -o data/dem/MED.CR.tif \
+            https://github.com/AmargoRM/informes-coordenada-streamlit/releases/download/data-dem-v1/MED.CR.tif
+
       - name: Generate report
         run: |
           set -eux
