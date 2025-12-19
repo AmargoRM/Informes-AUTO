@@ -37,6 +37,19 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+## Generar informe Word desde GitHub Actions
+
+1. Ir a **Actions** → **Generar informe Word** → **Run workflow**.
+2. Completar los inputs:
+   - `x`, `y`: coordenadas.
+   - `crs`: EPSG de la coordenada.
+   - `template`: ruta a la plantilla `.docx`.
+   - `output_name`: nombre base del archivo generado.
+3. Ejecutar el workflow y descargar el artifact `informe-word` (contiene `output/*.docx`).
+
+Para ver valores en el Word, la plantilla debe incluir placeholders con la forma
+`{{X}}`, `{{Y}}`, `{{CRS}}`, `{{FECHA_GEN}}`.
+
 ## Datos de entrada
 
 - **Shapefiles**: colocar en `data/` (por ejemplo `capas.shp`).
