@@ -6,7 +6,112 @@ from datetime import datetime
 import os
 from pathlib import Path
 
+from src.dem import get_elevation_from_dem
+from src.gis import build_point, spatial_join_point
 from src.word_fill import render_docx_from_template
+
+DATA_DIR = Path("data")
+SHAPES_DIR = DATA_DIR / "shapes"
+DEM_DIR = DATA_DIR / "dem"
+
+ADMIN_FIELD_CANDIDATES = {
+    "PROVINCIA": ("provincia",),
+    "CANTON": ("canton",),
+    "DISTRITO": ("distrito",),
+}
+CUENCA_FIELD_CANDIDATES = ("cuenca",)
+HOJA_FIELD_CANDIDATES = ("hoja", "carto")
+
+
+def _pick_shapefile(shape_files: list[Path], keywords: tuple[str, ...]) -> Path | None:
+    for keyword in keywords:
+        for shp in shape_files:
+            if keyword in shp.stem.lower():
+                return shp
+    if len(shape_files) == 1:
+        return shape_files[0]
+    return None
+
+
+def _extract_value(joined, candidates: tuple[str, ...]) -> str:
+    if joined is None or joined.empty:
+        return ""
+    row = joined.iloc[0]
+    for candidate in candidates:
+        for column in joined.columns:
+            if candidate in column.lower():
+                value = row.get(column)
+                if value is not None:
+                    return str(value)
+    return ""
+
+
+def _get_shape_files() -> list[Path]:
+    if not SHAPES_DIR.exists():
+        return []
+    return sorted(SHAPES_DIR.glob("*.shp"))
+
+
+def _spatial_join_values(x: float, y: float, crs_code: str) -> dict[str, str]:
+    shape_files = _get_shape_files()
+    if not shape_files:
+        return {
+            "PROVINCIA": "",
+            "CANTON": "",
+            "DISTRITO": "",
+            "CUENCA": "",
+            "HOJA_CARTO": "",
+        }
+
+    point_data = build_point(x, y, crs_code)
+    admin_shp = _pick_shapefile(shape_files, ("provincia", "canton", "distrito", "admin"))
+    cuenca_shp = _pick_shapefile(shape_files, ("cuenca",))
+    hoja_shp = _pick_shapefile(shape_files, ("hoja", "carto"))
+
+    provincia = canton = distrito = ""
+    if admin_shp:
+        joined = spatial_join_point(point_data, admin_shp.relative_to(DATA_DIR).as_posix())
+        provincia = _extract_value(joined, ADMIN_FIELD_CANDIDATES["PROVINCIA"])
+        canton = _extract_value(joined, ADMIN_FIELD_CANDIDATES["CANTON"])
+        distrito = _extract_value(joined, ADMIN_FIELD_CANDIDATES["DISTRITO"])
+
+    cuenca = ""
+    if cuenca_shp:
+        joined = spatial_join_point(point_data, cuenca_shp.relative_to(DATA_DIR).as_posix())
+        cuenca = _extract_value(joined, CUENCA_FIELD_CANDIDATES)
+
+    hoja_carto = ""
+    if hoja_shp:
+        joined = spatial_join_point(point_data, hoja_shp.relative_to(DATA_DIR).as_posix())
+        hoja_carto = _extract_value(joined, HOJA_FIELD_CANDIDATES)
+
+    return {
+        "PROVINCIA": provincia,
+        "CANTON": canton,
+        "DISTRITO": distrito,
+        "CUENCA": cuenca,
+        "HOJA_CARTO": hoja_carto,
+    }
+
+
+def _find_dem_file() -> Path | None:
+    if not DEM_DIR.exists():
+        return None
+    candidates = []
+    for pattern in ("*.tif", "*.tiff", "*.img"):
+        candidates.extend(DEM_DIR.glob(pattern))
+    if not candidates:
+        return None
+    return sorted(candidates)[0]
+
+
+def _sample_elevation(x: float, y: float) -> str:
+    dem_file = _find_dem_file()
+    if not dem_file:
+        return ""
+    dem_name = dem_file.relative_to(DATA_DIR).as_posix()
+    elevation = get_elevation_from_dem(x, y, dem_name)
+    return str(elevation)
 
 
 def parse_args() -> argparse.Namespace:
@@ -39,6 +144,8 @@ def resolve_output_path(output_name: str, out_override: str | None) -> Path:
 
 def main() -> None:
     args = parse_args()
+    x = float(args.x)
+    y = float(args.y)
 
     data = {
         "X": args.x,
@@ -46,6 +153,8 @@ def main() -> None:
         "CRS": args.crs,
         "FECHA_GEN": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
+    data.update(_spatial_join_values(x, y, args.crs))
+    data["ELEV_M"] = _sample_elevation(x, y)
 
     output_path = resolve_output_path(args.output_name, args.out)
     output_path.parent.mkdir(parents=True, exist_ok=True)
