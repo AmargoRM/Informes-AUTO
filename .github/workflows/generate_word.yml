@@ -32,6 +32,8 @@ on:
 jobs:
   generate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,12 +55,30 @@ jobs:
 
       - name: Download DEM
         if: steps.cache-dem.outputs.cache-hit != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eux
           mkdir -p data/dem
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y jq
+          fi
+          RELEASE_JSON=$(curl -sSL \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/data-dem-v1")
+          ASSET_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name=="MED.CR.tif") | .url')
+          if [ -z "$ASSET_URL" ] || [ "$ASSET_URL" = "null" ]; then
+            echo "DEM asset not found in release data-dem-v1"
+            echo "$RELEASE_JSON" | jq '.assets[].name'
+            exit 1
+          fi
           curl -L --fail \
-            -o data/dem/MED.CR.tif \
-            https://github.com/AmargoRM/informes-coordenada-streamlit/releases/download/data-dem-v1/MED.CR.tif
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "$ASSET_URL" \
+            -o data/dem/MED.CR.tif
 
       - name: Generate report
         run: |
