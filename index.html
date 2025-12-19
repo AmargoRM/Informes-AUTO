@@ -16,22 +16,6 @@
 
   <main class="container">
     <section class="card">
-      <h2>Seguridad</h2>
-      <p>Ingresa un token de GitHub con permisos para ejecutar workflows.</p>
-      <div class="row">
-        <div class="field">
-          <label for="token">GitHub Token</label>
-          <input type="password" id="token" placeholder="ghp_..." />
-        </div>
-        <div class="button-group">
-          <button id="save-token" class="secondary">Guardar token</button>
-          <button id="clear-token" class="ghost">Borrar token</button>
-        </div>
-      </div>
-      <p class="helper">El token se guarda en tu navegador (localStorage).</p>
-    </section>
-
-    <section class="card">
       <h2>Coordenadas</h2>
       <div class="toggle">
         <label>
@@ -101,7 +85,7 @@
       <div class="button-group">
         <button id="generate" class="primary">Generar informe</button>
       </div>
-      <p class="helper">Se enviará un workflow_dispatch al repositorio AmargoRM/Informes-AUTO.</p>
+      <p class="helper">Se enviará un workflow_dispatch al repositorio AmargoRM/Informes-AUTO sin pedir tokens al usuario.</p>
       <div id="alert" class="alert hidden"></div>
     </section>
 

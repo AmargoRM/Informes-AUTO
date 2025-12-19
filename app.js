@@ -1,13 +1,6 @@
-const OWNER = "AmargoRM";
-const REPO = "Informes-AUTO";
-const WORKFLOW_FILE = "generate_word.yml";
-const API_BASE = `https://api.github.com/repos/${OWNER}/${REPO}`;
-const STORAGE_KEY = "informes_github_token";
+const WORKER_BASE_URL = "https://TU-WORKER.workers.dev";
 
 const elements = {
-  token: document.getElementById("token"),
-  saveToken: document.getElementById("save-token"),
-  clearToken: document.getElementById("clear-token"),
   modeRadios: document.querySelectorAll("input[name='coord-mode']"),
   wgsFields: document.getElementById("wgs84-fields"),
   lambertFields: document.getElementById("lambert-fields"),
@@ -43,8 +36,6 @@ const formatNumber = (value, decimals) => {
   }
   return value.toFixed(decimals);
 };
-
-const getToken = () => localStorage.getItem(STORAGE_KEY) || "";
 
 const setAlert = (message, type = "error") => {
   elements.alert.textContent = message;
@@ -137,76 +128,72 @@ const convertToWgs = () => {
   return { lat, lon, e, n };
 };
 
-const authHeaders = (token) => ({
-  Authorization: `token ${token}`,
-  Accept: "application/vnd.github+json",
-});
-
-const fetchJson = async (url, options = {}) => {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    let detail = "";
-    try {
-      const data = await response.json();
-      detail = data.message ? ` (${data.message})` : "";
-    } catch (error) {
-      detail = "";
-    }
-    throw new Error(`Error ${response.status}${detail}`);
-  }
-  if (response.status === 204) {
-    return null;
-  }
-  return response.json();
-};
-
-const dispatchWorkflow = async ({ token, inputs }) => {
-  const url = `${API_BASE}/actions/workflows/${WORKFLOW_FILE}/dispatches`;
-  await fetchJson(url, {
-    method: "POST",
+const callWorker = async (path, options = {}) => {
+  const response = await fetch(`${WORKER_BASE_URL}${path}`, {
     headers: {
-      ...authHeaders(token),
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ ref: "main", inputs }),
+    ...options,
   });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const errorMessage = data.message || `Error ${response.status}`;
+    throw new Error(errorMessage);
+  }
+
+  return response;
 };
 
-const fetchLatestRun = async (token) => {
-  const url = `${API_BASE}/actions/workflows/${WORKFLOW_FILE}/runs?per_page=5`;
-  const data = await fetchJson(url, { headers: authHeaders(token) });
-  return data.workflow_runs?.[0] || null;
-};
-
-const fetchArtifacts = async (token, runId) => {
-  const url = `${API_BASE}/actions/runs/${runId}/artifacts`;
-  const data = await fetchJson(url, { headers: authHeaders(token) });
-  return data.artifacts || [];
-};
-
-const downloadArtifact = async (token, artifact) => {
-  const response = await fetch(artifact.archive_download_url, {
-    headers: authHeaders(token),
+const dispatchWorkflow = async (inputs) => {
+  const response = await callWorker("/dispatch", {
+    method: "POST",
+    body: JSON.stringify(inputs),
   });
+  const data = await response.json();
+  if (!data.ok) {
+    throw new Error(data.message || "No se pudo disparar el workflow.");
+  }
+  return data;
+};
+
+const fetchLatestRun = async () => {
+  const response = await callWorker("/latest-run");
+  const data = await response.json();
+  if (!data.ok) {
+    throw new Error(data.message || "No se pudo consultar el estado.");
+  }
+  return data;
+};
+
+const downloadArtifact = async (runId) => {
+  const query = runId ? `?run_id=${encodeURIComponent(runId)}` : "";
+  const response = await fetch(`${WORKER_BASE_URL}/artifact${query}`);
+
+  if (response.status === 404) {
+    throw new Error("Aún procesando el archivo.");
+  }
+
   if (!response.ok) {
     throw new Error("No se pudo descargar el artifact.");
   }
+
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `${artifact.name}.zip`;
+  anchor.download = "informe.zip";
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
 };
 
-const startPolling = (token) => {
+const startPolling = () => {
   stopPolling();
   pollingId = setInterval(async () => {
     try {
-      await refreshStatus(token);
+      await refreshStatus();
     } catch (error) {
       setAlert(`Error al actualizar estado: ${error.message}`);
       stopPolling();
@@ -233,10 +220,11 @@ const updateStatusUi = (run) => {
     elements.downloadArtifact.classList.add("hidden");
     return;
   }
+
   const status = run.status;
   const conclusion = run.conclusion;
   elements.runLink.href = run.html_url;
-  elements.runLink.classList.remove("hidden");
+  elements.runLink.classList.toggle("hidden", !run.html_url);
   lastRunId = run.id;
 
   if (status === "queued" || status === "in_progress") {
@@ -257,11 +245,24 @@ const updateStatusUi = (run) => {
         : `El workflow terminó con estado: ${conclusion || "desconocido"}.`,
       spinning: false,
     });
+    if (isSuccess) {
+      elements.downloadArtifact.classList.remove("hidden");
+      elements.statusDetail.textContent =
+        "Artifact listo. Usa el botón para descargar.";
+    }
   }
 };
 
-const refreshStatus = async (token) => {
-  const run = await fetchLatestRun(token);
+const refreshStatus = async () => {
+  const data = await fetchLatestRun();
+  const run = data.status
+    ? {
+        status: data.status,
+        conclusion: data.conclusion,
+        html_url: data.run_url,
+        id: data.run_id,
+      }
+    : null;
   updateStatusUi(run);
   if (!run) {
     stopPolling();
@@ -270,38 +271,11 @@ const refreshStatus = async (token) => {
 
   if (run.status === "completed") {
     stopPolling();
-    if (run.conclusion === "success") {
-      const artifacts = await fetchArtifacts(token, run.id);
-      const wordArtifact = artifacts.find((artifact) =>
-        artifact.name.toLowerCase().includes("word") ||
-        artifact.name.toLowerCase().includes("informe")
-      );
-      if (wordArtifact) {
-        elements.downloadArtifact.classList.remove("hidden");
-        elements.downloadArtifact.onclick = async () => {
-          try {
-            await downloadArtifact(token, wordArtifact);
-          } catch (error) {
-            setAlert(error.message);
-          }
-        };
-        elements.statusDetail.textContent =
-          "Artifact listo. Usa el botón para descargar.";
-      } else {
-        elements.statusDetail.textContent =
-          "No se encontró el artifact del Word. Revisa el run en GitHub.";
-      }
-    }
   }
 };
 
 const handleGenerate = async () => {
   clearAlert();
-  const token = getToken();
-  if (!token) {
-    setAlert("Debes ingresar un GitHub Token para ejecutar el workflow.");
-    return;
-  }
 
   const mode = getSelectedMode();
   let coords;
@@ -316,15 +290,11 @@ const handleGenerate = async () => {
 
   const lat = coords.lat;
   const lon = coords.lon;
-  const e = mode === "wgs84" ? coords.e : coords.e;
-  const n = mode === "wgs84" ? coords.n : coords.n;
 
   const inputs = {
-    lat_wgs84: formatNumber(lat, 6),
-    lon_wgs84: formatNumber(lon, 6),
-    e_5367: formatNumber(e, 3),
-    n_5367: formatNumber(n, 3),
-    expediente: elements.expediente.value.trim(),
+    lat: formatNumber(lat, 6),
+    lon: formatNumber(lon, 6),
+    exp: elements.expediente.value.trim(),
     gestor: elements.gestor.value.trim(),
   };
 
@@ -336,10 +306,15 @@ const handleGenerate = async () => {
       spinning: true,
     });
     elements.downloadArtifact.classList.add("hidden");
-    await dispatchWorkflow({ token, inputs });
-    setAlert("Workflow enviado correctamente.", "success");
-    await refreshStatus(token);
-    startPolling(token);
+    const response = await dispatchWorkflow(inputs);
+    setAlert(response.message || "Workflow enviado correctamente.", "success");
+    if (response.run_url) {
+      elements.runLink.href = response.run_url;
+      elements.runLink.classList.remove("hidden");
+    }
+    lastRunId = response.run_id || null;
+    await refreshStatus();
+    startPolling();
   } catch (error) {
     setAlert(`No se pudo enviar el workflow: ${error.message}`);
     setStatus({
@@ -351,27 +326,15 @@ const handleGenerate = async () => {
   }
 };
 
-const init = () => {
-  const savedToken = getToken();
-  if (savedToken) {
-    elements.token.value = savedToken;
+const handleDownload = async () => {
+  try {
+    await downloadArtifact(lastRunId);
+  } catch (error) {
+    setAlert(error.message);
   }
+};
 
-  elements.saveToken.addEventListener("click", () => {
-    if (!elements.token.value.trim()) {
-      setAlert("El token no puede estar vacío.");
-      return;
-    }
-    localStorage.setItem(STORAGE_KEY, elements.token.value.trim());
-    clearAlert();
-  });
-
-  elements.clearToken.addEventListener("click", () => {
-    localStorage.removeItem(STORAGE_KEY);
-    elements.token.value = "";
-    clearAlert();
-  });
-
+const init = () => {
   elements.modeRadios.forEach((radio) => {
     radio.addEventListener("change", (event) => {
       toggleMode(event.target.value);
@@ -388,11 +351,16 @@ const init = () => {
     handleGenerate();
   });
 
-  refreshStatus(getToken()).catch(() => {
+  elements.downloadArtifact.addEventListener("click", (event) => {
+    event.preventDefault();
+    handleDownload();
+  });
+
+  refreshStatus().catch(() => {
     setStatus({
       label: "Sin iniciar",
       badgeClass: "",
-      detail: "Ingresa un token para consultar el estado.",
+      detail: "No se pudo consultar el estado del workflow.",
       spinning: false,
     });
   });
