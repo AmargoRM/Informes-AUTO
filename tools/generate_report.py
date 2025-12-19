@@ -7,91 +7,99 @@ import os
 from pathlib import Path
 
 from src.dem import get_elevation_from_dem
-from src.gis import build_point, spatial_join_point
+from src.gis import (
+    build_point,
+    load_layer_from_zip,
+    normalize_crs_code,
+    reproject_point,
+    spatial_join_point,
+)
 from src.word_fill import render_docx_from_template
 
 DATA_DIR = Path("data")
-SHAPES_DIR = DATA_DIR / "shapes"
+ZIPS_DIR = DATA_DIR / "zips"
+GIS_DIR = DATA_DIR / "gis"
 DEM_DIR = DATA_DIR / "dem"
+TARGET_CRS = build_point(0, 0, "EPSG:5367").crs
 
 ADMIN_FIELD_CANDIDATES = {
-    "PROVINCIA": ("provincia",),
-    "CANTON": ("canton",),
-    "DISTRITO": ("distrito",),
+    "PROVINCIA": ("PROVINCIA",),
+    "CANTON": ("CANTON",),
+    "DISTRITO": ("DISTRITO",),
 }
-CUENCA_FIELD_CANDIDATES = ("cuenca",)
-HOJA_FIELD_CANDIDATES = ("hoja", "carto")
-
-
-def _pick_shapefile(shape_files: list[Path], keywords: tuple[str, ...]) -> Path | None:
-    for keyword in keywords:
-        for shp in shape_files:
-            if keyword in shp.stem.lower():
-                return shp
-    if len(shape_files) == 1:
-        return shape_files[0]
-    return None
+CUENCA_FIELD_CANDIDATES = {
+    "CUENCA": ("NOMBRE",),
+    "CUENCA_NO": ("CUENCA_NO", "CUENCA_N"),
+}
+HOJA_FIELD_CANDIDATES = {
+    "HOJA_NOMBRE": ("NOMBRE",),
+    "HOJA_NUM": ("NUMERO", "NUM"),
+}
 
 
 def _extract_value(joined, candidates: tuple[str, ...]) -> str:
     if joined is None or joined.empty:
-        return ""
+        return "N/D"
     row = joined.iloc[0]
     for candidate in candidates:
         for column in joined.columns:
-            if candidate in column.lower():
+            if candidate == column:
                 value = row.get(column)
                 if value is not None:
                     return str(value)
-    return ""
+    return "N/D"
 
 
-def _get_shape_files() -> list[Path]:
-    if not SHAPES_DIR.exists():
-        return []
-    return sorted(SHAPES_DIR.glob("*.shp"))
+def _extract_values(joined, field_map: dict[str, tuple[str, ...]]) -> dict[str, str]:
+    return {key: _extract_value(joined, candidates) for key, candidates in field_map.items()}
 
 
-def _spatial_join_values(x: float, y: float, crs_code: str) -> dict[str, str]:
-    shape_files = _get_shape_files()
-    if not shape_files:
-        return {
-            "PROVINCIA": "",
-            "CANTON": "",
-            "DISTRITO": "",
-            "CUENCA": "",
-            "HOJA_CARTO": "",
-        }
+def _resolve_zip_path(zip_name: str) -> Path | None:
+    candidate_paths = [
+        ZIPS_DIR / zip_name,
+        DATA_DIR / zip_name,
+    ]
+    for path in candidate_paths:
+        if path.exists():
+            return path
+    return None
 
-    point_data = build_point(x, y, crs_code)
-    admin_shp = _pick_shapefile(shape_files, ("provincia", "canton", "distrito", "admin"))
-    cuenca_shp = _pick_shapefile(shape_files, ("cuenca",))
-    hoja_shp = _pick_shapefile(shape_files, ("hoja", "carto"))
 
-    provincia = canton = distrito = ""
-    if admin_shp:
-        joined = spatial_join_point(point_data, admin_shp.relative_to(DATA_DIR).as_posix())
-        provincia = _extract_value(joined, ADMIN_FIELD_CANDIDATES["PROVINCIA"])
-        canton = _extract_value(joined, ADMIN_FIELD_CANDIDATES["CANTON"])
-        distrito = _extract_value(joined, ADMIN_FIELD_CANDIDATES["DISTRITO"])
+def _load_layer_if_present(zip_name: str, layer_name: str, *, buffer_m: float = 0.0):
+    zip_path = _resolve_zip_path(zip_name)
+    if zip_path is None:
+        return None
+    out_dir = GIS_DIR / layer_name
+    return load_layer_from_zip(zip_path, out_dir, TARGET_CRS, buffer_lines_m=buffer_m)
 
-    cuenca = ""
-    if cuenca_shp:
-        joined = spatial_join_point(point_data, cuenca_shp.relative_to(DATA_DIR).as_posix())
-        cuenca = _extract_value(joined, CUENCA_FIELD_CANDIDATES)
 
-    hoja_carto = ""
-    if hoja_shp:
-        joined = spatial_join_point(point_data, hoja_shp.relative_to(DATA_DIR).as_posix())
-        hoja_carto = _extract_value(joined, HOJA_FIELD_CANDIDATES)
-
-    return {
-        "PROVINCIA": provincia,
-        "CANTON": canton,
-        "DISTRITO": distrito,
-        "CUENCA": cuenca,
-        "HOJA_CARTO": hoja_carto,
+def _spatial_join_values(point_data) -> dict[str, str]:
+    results = {
+        "PROVINCIA": "N/D",
+        "CANTON": "N/D",
+        "DISTRITO": "N/D",
+        "CUENCA": "N/D",
+        "CUENCA_NO": "N/D",
+        "HOJA_NOMBRE": "N/D",
+        "HOJA_NUM": "N/D",
     }
+
+    admin_layer = _load_layer_if_present("Limites_geo.zip", "limites")
+    if admin_layer is not None:
+        joined = spatial_join_point(point_data, admin_layer)
+        results.update(_extract_values(joined, ADMIN_FIELD_CANDIDATES))
+
+    cuenca_layer = _load_layer_if_present("Cuencas.zip", "cuencas", buffer_m=100.0)
+    if cuenca_layer is not None:
+        joined = spatial_join_point(point_data, cuenca_layer)
+        results.update(_extract_values(joined, CUENCA_FIELD_CANDIDATES))
+
+    hoja_layer = _load_layer_if_present("Hojas.zip", "hojas")
+    if hoja_layer is not None:
+        joined = spatial_join_point(point_data, hoja_layer)
+        results.update(_extract_values(joined, HOJA_FIELD_CANDIDATES))
+
+    return results
 
 
 def _find_dem_file() -> Path | None:
@@ -111,14 +119,21 @@ def _find_dem_file() -> Path | None:
 def _sample_elevation(x: float, y: float, crs_code: str) -> str:
     dem_file = _find_dem_file()
     if not dem_file:
-        return ""
+        return "N/D"
     elevation = get_elevation_from_dem(x, y, crs_code, dem_file.as_posix())
     if elevation is None:
-        return ""
+        return "N/D"
     rounded = round(elevation, 1)
     if rounded.is_integer():
         return str(int(rounded))
     return f"{rounded:.1f}"
+
+
+def _format_coordinate(value: float) -> str:
+    rounded = round(value, 2)
+    if rounded.is_integer():
+        return str(int(rounded))
+    return f"{rounded:.2f}"
 
 
 def parse_args() -> argparse.Namespace:
@@ -151,17 +166,22 @@ def resolve_output_path(output_name: str, out_override: str | None) -> Path:
 
 def main() -> None:
     args = parse_args()
+    input_crs = normalize_crs_code(args.crs)
     x = float(args.x)
     y = float(args.y)
+    point_data = build_point(x, y, input_crs)
+    point_5367 = reproject_point(point_data, TARGET_CRS)
 
     data = {
         "X": args.x,
         "Y": args.y,
-        "CRS": args.crs,
+        "CRS": input_crs,
         "FECHA_GEN": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "E_5367": _format_coordinate(point_5367.geometry.x),
+        "N_5367": _format_coordinate(point_5367.geometry.y),
     }
-    data.update(_spatial_join_values(x, y, args.crs))
-    elevation = _sample_elevation(x, y, args.crs)
+    data.update(_spatial_join_values(point_5367))
+    elevation = _sample_elevation(point_5367.geometry.x, point_5367.geometry.y, "EPSG:5367")
     data["ALTITUD_M"] = elevation
     data["ELEV_M"] = elevation
 
