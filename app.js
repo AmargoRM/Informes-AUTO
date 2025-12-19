@@ -1,4 +1,5 @@
-const WORKER_BASE_URL = "https://TU-WORKER.workers.dev";
+const WORKER_BASE_URL =
+  window.WORKER_BASE_URL || "https://informes-auto.amargorm.workers.dev";
 
 const elements = {
   modeRadios: document.querySelectorAll("input[name='coord-mode']"),
